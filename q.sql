@@ -163,11 +163,14 @@ BEGIN
 	INSERT INTO [Artista](name,records_id)
 	SELECT artist_name,records_id FROM inserted;			
 	--adiciona automaticamente na tabela de artistas o artista do vinil
+	INSERT INTO [Pessoa](artist_name)
+	SELECT artist_name FROM inserted;
 END
 else if NOT EXISTS(SELECT * FROM inserted) AND EXISTS (SELECT * FROM deleted) AND EXISTS(SELECT name FROM Artista WHERE name=(SELECT artist_name FROM deleted)) AND (SELECT count(*) FROM Vinil WHERE artist_name=(SELECT artist_name FROM deleted))<2
 	BEGIN
 	DELETE FROM Artista WHERE name=(SELECT artist_name FROM deleted);
 	--Remove automaticamente o artista quando e removido um vinil
+	DELETE FROM Pessoa WHERE artist_name=(SELECT artist_name FROM deleted);
 	END
 go
 --------------------
@@ -257,7 +260,7 @@ AS
 SELECT ad_id,price,Anuncio.n_catalog,sellers_username,@music FROM Anuncio 
 			JOIN Vinil ON Anuncio.n_catalog=Vinil.n_catalog 
 			JOIN Musicas ON Vinil.n_catalog=Musicas.id_vinyl 
-			WHERE songs_name=@music AND buyer_username=NULL;;
+			WHERE songs_name LIKE '%'+@music+'%' AND buyer_username=NULL;;
 go
 -------------------------
 go
@@ -328,6 +331,60 @@ CREATE PROC listVinylByRating
 AS
 SELECT Vinil.n_catalog,vin_name,AVG(rating) FROM Vinil	
 		JOIN Rating ON Vinil.n_catalog=Rating.n_catalog
-		GROUP BY vin_name,Vinil.n_catalog;
+		GROUP BY vin_name,Vinil.n_catalog ORDER BY AVG(rating);
 go
 -----------------
+
+----------------
+--Listar vinis de artistas que pertencem a bandas
+---------------------------
+go
+CREATE PROC listVinylByArtBand 
+AS
+SELECT Vinil.n_catalog,vin_name,Vinil.artist_name FROM Vinil	
+		JOIN Artista ON Vinil.artist_name=Artista.name
+		JOIN Pessoa ON Artista.name=Pessoa.artist_name
+		JOIN Pertence ON Pessoa.artist_name=Pertence.artist_name;
+		
+go
+----------------------------
+--Listar vinis de artistas independentes
+----------------------------
+go 
+CREATE PROC listVinylIndependent
+AS
+SELECT Vinil.n_catalog,vin_name,Vinil.artist_name FROM Vinil
+		JOIN Artista ON Vinil.artist_name=Artista.name
+		WHERE Artista.records_id=NULL; 
+go
+---------------------
+--Listar users com mais de 10 vinis na colecao
+----------------------
+go
+CREATE PROC listUserCollection2 @username varchar(15)
+AS
+SELECT Utilizador.username FROM Utilizador 
+JOIN Colecao_com_Vinil ON Utilizador.username=Colecao_com_Vinil.username
+JOIN Vinil ON Colecao_com_Vinil.n_catalog=Vinil.n_catalog
+WHERE Utilizador.username=@username AND (SELECT n_items FROM Colecao WHERE Utilizador.username=@username)>10 ORDER  BY (SELECT n_items FROM Colecao WHERE Utilizador.username=@username);
+go
+--------------------------
+--Lista de users que venderam mais vinis
+-----------------------
+go 
+CREATE PROC listMostSellers
+AS
+SELECT Utilizador.username,COUNT(*) FROM Utilizador
+	JOIN Vendedor ON Utilizador.username=Vendedor.username
+	JOIN Anuncio ON Vendedor.username=Anuncio.sellers_username
+	GROUP BY Utilizador.username ORDER BY COUNT(*) 
+go
+----------------------
+--Artistas com mais Vinis
+--------------------
+go 
+CREATE PROC bestArtists
+AS
+SELECT artist_name,COUNT(*) FROM Vinil
+		GROUP BY artist_name;
+go
