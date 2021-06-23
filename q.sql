@@ -80,15 +80,6 @@ AS
 DELETE FROM Colecao_com_Vinil WHERE n_catalog=@n_catalog AND username=@username
 --(depois de remover vinil em coleção, accionar trigger que decrementa nº items na tabela colecao) (feito)
 go
-----------------------
-go
-CREATE PROC listUserCollection @username varchar(15)
-AS
-SELECT Utilizador.username,Colecao_com_Vinil.n_catalog,Vinil.vin_name FROM Utilizador 
-JOIN Colecao_com_Vinil ON Utilizador.username=Colecao_com_Vinil.username
-JOIN Vinil ON Colecao_com_Vinil.n_catalog=Vinil.n_catalog
-WHERE Utilizador.username=@username;
-go
 ------------------------
 
 
@@ -109,7 +100,7 @@ go
 CREATE PROC searchVinyl @n_catalog int
 AS
 SELECT Vinil.n_catalog, Vinil.vin_name FROM Vinil
-WHERE Vinil.n_catalog=@n_catalog;
+WHERE Vinil.n_catalog LIKE '%'+@n_catalog+'%';
 go
 --------------------------
 go
@@ -218,10 +209,6 @@ CREATE PROC removeAd @id int
 AS
 DELETE FROM Anuncio WHERE ad_id=@id;
 go
------------------------------
-SELECT * FROM Anuncio WHERE buyer_username=NULL; --apenas lista aquelas que n\ao tem comprador
-SELECT * FROM Anuncio Where buyer_username <> NULL; --lista os anuncios ja comprados
-SELECT COUNT(*) FROM Anuncio; --numero de anuncios
 --------------------------------
 go
 CREATE PROC buyAd @id int, @username varchar(15), @ratingComprador int, @ratingVendedor int --(rating do comprador e do vendedor)
@@ -233,7 +220,7 @@ UPDATE Anuncio SET buyer_username=@username WHERE ad_id=@id;
 UPDATE Vendedor SET sellers_rating=(sellers_rating+@ratingVendedor)/2;	--updata o rating do vendedor
 UPDATE Comprador SET buyer_rating=(buyer_rating+@ratingComprador)/2;	--updata o rating do comprador
 END
-	--accionar trigger que adicione o buyer_username a tabela de compradores (feito)
+	--accionar trigger que adicione o buyer_username a tabela de compradores e que adicione o vinil comprado à coleção do user (feito)
 go
 -----------------------------
 go
@@ -282,7 +269,7 @@ AS
 if EXISTS(SELECT * FROM inserted) AND NOT EXISTS(SELECT * FROM Vendedor WHERE username=(SELECT sellers_username FROM inserted))
 BEGIN
 INSERT INTO [Vendedor](
-			[username]) VALUES ((SELECT sellers_username FROM inserted))
+			[username]) VALUES ((SELECT sellers_username FROM inserted));
 END
 go
 ----------------------
@@ -295,7 +282,11 @@ AS
 if EXISTS(SELECT * FROM inserted) AND NOT EXISTS(SELECT * FROM Comprador WHERE username=(SELECT buyer_username FROM inserted))
 BEGIN
 INSERT INTO [Comprador](
-			[username]) VALUES ((SELECT buyer_username FROM inserted))
+			[username]) VALUES ((SELECT buyer_username FROM inserted));
+
+INSERT INTO [Colecao_com_Vinil](
+			[n_catalog],
+			[username]) VALUES ((SELECT n_catalog FROM inserted),(SELECT buyer_username FROM inserted));
 END
 go
 
@@ -388,3 +379,84 @@ AS
 SELECT artist_name,COUNT(*) FROM Vinil
 		GROUP BY artist_name;
 go
+----------------------
+--UDFS
+------------------------
+---getSellerUDF
+-------------------------
+go
+CREATE FUNCTION getSeller(@AD_ID int)
+returns VARCHAR(15)
+AS
+BEGIN
+DECLARE @seller VARCHAR(15)
+			SET @seller = (Select sellers_username 
+			from Anuncio
+			where ad_id = @AD_ID)
+			RETURN @seller;
+END
+go
+-----------------------
+-----getBuyerUDF
+----------------------
+go
+CREATE FUNCTION getBuyer(@AD_ID int)
+returns VARCHAR(15)
+AS
+BEGIN
+DECLARE @buyer VARCHAR(15)
+			SET @buyer = (Select buyer_username 
+			from Anuncio
+			where ad_id = @AD_ID)
+			RETURN @buyer;
+END
+go
+-----------------------
+----getUsernameUDF
+-------------------
+go
+CREATE FUNCTION getUser(@email varchar(18))
+returns VARCHAR(15)
+AS
+BEGIN
+DECLARE @username VARCHAR(15)
+			SET @username = (Select username
+			from Utilizador
+			where email = @email)
+			RETURN @username;
+END
+go
+-------------------------
+-----getCollectionUDF
+------------------
+go
+CREATE FUNCTION getCollection(@user varchar(15))
+returns table
+AS
+
+	return (SELECT Utilizador.username,Colecao_com_Vinil.n_catalog,Vinil.vin_name FROM Utilizador 
+			JOIN Colecao_com_Vinil ON Utilizador.username=Colecao_com_Vinil.username
+			JOIN Vinil ON Colecao_com_Vinil.n_catalog=Vinil.n_catalog
+			WHERE Utilizador.username=@user)
+go
+------------------------
+----getAdsUDF
+---------------------
+go
+CREATE FUNCTION getAds()
+returns table
+AS
+
+	return (SELECT * FROM Anuncio WHERE buyer_username=NULL);
+go
+-----------------------
+---AdsHistoryUDF
+--------------------
+go
+CREATE FUNCTION AdsHistory()
+returns table
+AS
+
+	return (SELECT * FROM Anuncio WHERE buyer_username<>NULL);
+go
+---------------------------
