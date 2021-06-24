@@ -289,7 +289,19 @@ INSERT INTO [Colecao_com_Vinil](
 			[username]) VALUES ((SELECT n_catalog FROM inserted),(SELECT buyer_username FROM inserted));
 END
 go
-
+--------------------
+--Inserir Músicas
+-----------------
+go
+CREATE PROC insertMusic @name varchar(20), @length TIME, @id_vinyl int
+AS
+BEGIN
+INSERT INTO [Musicas](
+			[songs_name],
+			[songs_length],
+			[id_vinyl]) VALUES(@name,@length,@id_vinyl);
+END
+go			
 -------------------------
 --Dar rating a vinil, mudar rating, eliminar rating de vinil,
 --listar vinis por rating
@@ -453,10 +465,26 @@ go
 ---AdsHistoryUDF
 --------------------
 go
-CREATE FUNCTION AdsHistory()
+CREATE FUNCTION AdsHistory(@user varchar(15))
 returns table
 AS
 
-	return (SELECT * FROM Anuncio WHERE buyer_username<>NULL);
+	return (SELECT * FROM Anuncio WHERE buyer_username=@user);
 go
 ---------------------------
+--avgRatingofVinylUDF
+---------------------
+go
+CREATE FUNCTION avgRatingOfVinyl(@vinyl_id int)
+returns decimal
+AS
+BEGIN
+	DECLARE @avgRat decimal
+	SELECT @avgRat=round(avg(cast(rating AS decimal)),1)
+	FROM Vinil JOIN Rating ON Vinil.n_catalog=Rating.n_catalog
+	WHERE Vinil.n_catalog=@vinyl_id;
+
+	return @avgRat
+END
+go
+-------------------------------

@@ -72,7 +72,7 @@ CREATE TABLE Vendedor(
 	PRIMARY KEY(username),
 	FOREIGN KEY(username) REFERENCES Utilizador(username)
 	);
-	
+
 CREATE TABLE Comprador(
 	username VARCHAR(15) not null,
 	buyer_rating INT DEFAULT 0,
